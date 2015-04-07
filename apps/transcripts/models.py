@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from django.db import models, transaction
 from django.db.models import Q, F
@@ -278,3 +279,61 @@ class Revision(models.Model):
     class Meta:
         unique_together = ('page', 'by')
         ordering = ('when',)
+
+
+class MissionExporter(object):
+    """Exports a mission so it can be used in Spacelog"""
+
+    def __init__(self, mission, main_transcript_name="TEC"):
+        self.mission = mission
+        self.main_transcript_name = main_transcript_name
+
+    def main_transcript(self):
+        """Returns the text of the mission's main transcript"""
+        main_transcript = ""
+        for page in self.mission.pages.all():
+            main_transcript += "\tPage %d\n" % page.number
+            main_transcript += "\tApproved? %s\n" % page.approved
+            main_transcript += page.text
+            main_transcript += "\n"
+        return main_transcript
+
+    def main_transcript_path(self):
+        """Returns the path where the main transcript should be written,
+        relative to the mission's root directory."""
+        return "transcripts/%s" % (self.main_transcript_name,)
+
+    def meta(self):
+        """Returns the JSON of the mission's _meta transcript"""
+        upper_title, lower_title = self.mission.name.split(" ", 1)
+        meta = {
+            "name": self.mission.short_name.lower(),
+            "incomplete": True,
+            "subdomains": [self.mission.short_name.lower()],
+            "copy": {
+                "title": self.mission.name,
+                "upper_title": upper_title,
+                "lower_title": lower_title,
+                "cleaners": self._cleaners(),
+            },
+            "main_transcript": "%s/%s" % (
+                self.mission.short_name.lower(),
+                self.main_transcript_name,
+            ),
+            "utc_launch_time": self.mission.start.isoformat(),
+        }
+        return json.dumps(meta, indent=4) + "\n"
+
+    def meta_path(self):
+        """Returns the path where the meta file should be written,
+        relative to the mission's root directory."""
+        return "transcripts/_meta"
+
+    def _cleaners(self):
+        cleaners = set()
+        for page in self.mission.pages.all():
+            for revision in page.revisions.all():
+                cleaners.add(revision.by.name)
+        cleaners = list(cleaners)
+        cleaners.sort()
+        return cleaners

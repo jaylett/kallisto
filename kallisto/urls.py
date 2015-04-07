@@ -10,6 +10,7 @@ urlpatterns = patterns(
     url(r'^admin/', include(admin.site.urls)),
     url(r'^(?P<slug>[0-9A-Za-z]+)/$', 'apps.transcripts.views.clean', name='mission-clean-next'),
     url(r'^(?P<slug>[0-9A-Za-z]+)/(?P<page>[0-9]+)/$', 'apps.transcripts.views.page', name='mission-page'),
+    url(r'^(?P<slug>[0-9A-Za-z]+)/export/$', 'apps.transcripts.views.export', name='mission-export'),
 
     url(r'^account/register/$', 'apps.people.views.register', name='register'),
     url(r'^account/registered/$', 'apps.people.views.registered', name='registered'),

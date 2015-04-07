@@ -1,11 +1,13 @@
+from zipfile import ZipFile
+from StringIO import StringIO
 from django import forms
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
 from django.db import transaction
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.utils.translation import ugettext_lazy as _
 from django.views.generic import DetailView, UpdateView
-from .models import Mission, Page, Revision, LockExpired
+from .models import Mission, Page, Revision, LockExpired, MissionExporter
 
 
 class CleanNext(DetailView):
@@ -110,5 +112,39 @@ class CleanPage(UpdateView):
                 'slug': self.object.mission.short_name,
             },
         )
-
 page = login_required(CleanPage.as_view())
+
+
+class ExportMission(DetailView):
+    model = Mission
+    slug_field = 'short_name'
+
+    def get(self, request, *args, **kwargs):
+        response = HttpResponse(self._zip_data().read())
+        response['Content-Disposition'] = 'attachment; filename=%s.zip' % (self._mission_short_name,)
+        response['Content-Type'] = 'application/x-zip'
+        return response
+
+    def _zip_data(self):
+        exporter = self._get_exporter()
+        zip_data = StringIO()
+        with ZipFile(zip_data, mode='w') as zip_file:
+            zip_file.writestr(
+                "%s/%s" % (self._mission_short_name, exporter.main_transcript_path()),
+                unicode(exporter.main_transcript()).encode("utf-8"),
+            )
+            zip_file.writestr(
+                "%s/%s" % (self._mission_short_name, exporter.meta_path()),
+                unicode(exporter.meta()).encode("utf-8"),
+            )
+        zip_data.seek(0)
+        return zip_data
+
+    def _get_exporter(self):
+        return MissionExporter(self.get_object())
+
+    @property
+    def _mission_short_name(self):
+        return self.get_object().short_name
+
+export = login_required(ExportMission.as_view())
